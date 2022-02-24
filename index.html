@@ -4,11 +4,15 @@
 <meta charset="UTF-8">
 <title>Connected Device Project1</title>
 <meta charset="UTF-8">
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
-<style>
-body {
+<!-- <link rel="stylesheet" href="style.css"> -->
+<style>body {
     background: white;
 }
+
+.rightofwidth{
+    float: right;
+}
+
 .clock {
 text-align: center;
 padding: 50px 0;
@@ -78,8 +82,8 @@ label:hover{
     padding: 0;
     margin: auto;
     display: block;
-    width: 256px;
-    height: 256px;
+    /* width: 256px;
+    height: 256px; */
 }
 
 #picked span{
@@ -92,22 +96,125 @@ label:hover{
   font:8px/50px Arial;
   color:#fff;
 }
-
 </style>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 </head>
 <body>
- 
-<div id="DigitalCLOCK" class="clock" onload="showTime()"></div>
+    <div class = "rightofwidth"> 
+        <input type="button" id="connect" value="connect">
+        <div id="device"></div>
+        <!-- LED On:<input type="checkbox" id="writeButton" value="Change LED"> -->
+    </div>
+<br><br><div id="DigitalCLOCK" class="clock" onload="showTime()"></div>
 <div class = "line2"><p>Upload pictures of your sky to</p><p>adjuct clock color</p></div>
 <div class="container">
     <input type="file" id="file_upload">
     <label for="file_upload">Upload</label>
 </div>
 <canvas id="canvas_picker"></canvas><br>
-<!-- <div id="hex">HEX: <input type="text"></div> -->
+<!-- <div id="rgb">HEX: <input type="text"></div> -->
 <!-- （这个显示hex数值，树树debug用） -->
 <div class = "pickercenter"><div id="picked"></div></div>
 
+<script>// advertised service UUID of the  to search for:
+    const serviceUuid = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    // DOM elements to interact with:
+    let connectButton;
+    let dataDiv;
+    let deviceDiv;
+    let ledButton;
+    // TODO these could be one JSON object representing the device
+    // and its services and characteristics:
+    let myDevice;
+    let myCharacteristic;
+    
+    
+    // this function is called when the page is loaded. 
+    // event listener functions are initialized here:
+    function setup() {
+      // put the DOM elements into global variables:
+      connectButton = document.getElementById('connect');
+      connectButton.addEventListener('click', connectToBle);
+      ledButton = document.getElementById('canvas_picker');
+      ledButton.addEventListener('click', writeToCharacteristic);
+      deviceDiv = document.getElementById('device');
+      dataDiv = document.getElementById('data');
+    }
+    
+    // connect to the peripheral:
+    function connectToBle() {
+      // options let you filter for a peripheral 
+      // with a particular service UUID:
+      let options = {
+        filters: [{
+          services: [serviceUuid]
+        }]
+      };
+      // start scanning:
+      navigator.bluetooth.requestDevice(options)
+        // when you get a device:
+        .then(device => {
+          myDevice = device;
+        //   deviceDiv.innerHTML = "Device name: " + device.name;
+        //   deviceDiv.innerHTML += "<br>Service UUID: " + serviceUuid;
+          return device.gatt.connect();
+        })
+        // get the primary service:
+        .then(server => server.getPrimaryService(serviceUuid))
+        .then(service => service.getCharacteristics())
+        // get the characteristics of the service:
+        .then(characteristics => readCharacteristics(characteristics))
+        // if there's an error:
+        .catch(error => console.log('Connection failed!', error));
+    
+      function readCharacteristics(characteristics) {
+        // add the characterisitic UUID to the device div:
+        deviceDiv.innerHTML += "<br>Connected " ;
+        myCharacteristic = characteristics[0];
+        // Get the initial value:
+        characteristics[0].readValue()
+          .then(data => {
+            let ledState = data.getUint8(0);
+            ledButton.checked = ledState;
+          });
+      }
+    }
+    
+    // write to a characteristic:
+    function writeToCharacteristic() {
+      // LED state is whether or not the button is checked:
+      // let ledState = event.target.checked;
+      // if you're connected, write to the peripheral:
+      if (myDevice && myDevice.gatt.connected) {
+        // convert to an ArrayBufferView:
+        // var element = document.getElementById("zeshu");
+        // alert(element.innerHTML);
+        // let valueToSend = Int16Array.of(element.innerHTML);
+        // debugger
+        // alert(valueToSend);
+        
+        var r = window.img_data[0];
+        var g = window.img_data[1];
+        var b = window.img_data[2];
+        console.log(r);
+        // write to characteristic now:
+        // myCharacteristic.writeValue(valueToSend);
+        myCharacteristic.writeValue(new Uint8Array([r,g,b,0]));
+      }
+      // alert(zeshu);
+    }
+    
+    // function testme(){
+    //   alert("hello");
+    //   var element = document.getElementById("zeshu");
+    //   alert(element.innerHTML);
+    // }
+    
+    // This is a listener for the page to load.
+    // This is the command that actually starts the script:
+    window.addEventListener('DOMContentLoaded', setup);
+    
+    </script>
 <script>
     function showTime(){
     var date = new Date();
@@ -142,7 +249,7 @@ label:hover{
     setTimeout(showTime, 1000);
     
 }
- 
+
 showTime();
 
 
@@ -172,6 +279,7 @@ $('#canvas_picker').click(function(event){
   var x = event.pageX - $(this).offset().left; // 相对于canvas offs固定坐标
   var y = event.pageY - $(this).offset().top;
   var img_data = context.getImageData(x,y , 1, 1).data;
+  window.img_data = img_data;
   var R = img_data[0];
   var G = img_data[1];
   var B = img_data[2]; 
@@ -179,7 +287,8 @@ $('#canvas_picker').click(function(event){
   var hex = rgbToHex(R,G,B);
   $('#rgb input').val( rgb );
   $('#hex input').val('#' + hex);
-  $picked.append("<span style='background:#"+hex+"'>#"+hex+"</span>");
+  $picked.append("<span id='zeshu' style='background:#"+hex+"'>"+rgb+"</span>");
+  // testme()
 });
 
 function rgbToHex(R, G, B) {
@@ -192,6 +301,10 @@ function toHex(n) {
   n = Math.max(0, Math.min(n, 255));
   return "0123456789ABCDEF".charAt((n - n % 16) / 16)  + "0123456789ABCDEF".charAt(n % 16);
 }
+
+
+
 </script>
+
 </body>
 </html>
